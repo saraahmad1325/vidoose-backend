@@ -6,7 +6,11 @@ import { buildApp } from './app';
 import { env } from './config/env';
 import { connectDB } from './config/db';
 import { redisConnection } from './config/redis';
-import { flushAnalytics } from './cron/analytics.cron'; // Ensure you created this file
+import { flushAnalytics } from './cron/analytics.cron';
+
+// 🔥 IMPORTANT: Import the worker here to run it in the same process
+// This enables the "Monolith Strategy" to save costs on Render
+import './worker';
 
 const start = async () => {
   const app = buildApp();
