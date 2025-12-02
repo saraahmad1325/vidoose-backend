@@ -6,24 +6,32 @@ import { buildApp } from './app';
 import { env } from './config/env';
 import { connectDB } from './config/db';
 import { redisConnection } from './config/redis';
-import { flushAnalytics } from './cron/analytics.cron'; // Ensure you created this file
+import { flushAnalytics } from './cron/analytics.cron';
+import './worker'; // Monolith Worker
+
+// 🔥 SELF-HEALING: Catch Unhandled Errors to prevent silent crashes
+process.on('uncaughtException', (err) => {
+  console.error('💥 UNCAUGHT EXCEPTION! Shutting down...', err);
+  // Log error to external service (Sentry) here in future
+  process.exit(1); // PM2 will restart it automatically
+});
+
+process.on('unhandledRejection', (err) => {
+  console.error('💥 UNHANDLED REJECTION! Shutting down...', err);
+  process.exit(1); // PM2 will restart it automatically
+});
 
 const start = async () => {
-  const app = buildApp();
+  const app = await buildApp(); // Note: Added await because buildApp is async now
   
-  // 1. Connect Database
   await connectDB();
 
-  // 2. Start Server
   try {
-    // Host 0.0.0.0 is required for Docker/Render
     await app.listen({ port: parseInt(env.PORT), host: '0.0.0.0' });
     console.log(`🚀 Server running on port ${env.PORT} [${env.NODE_ENV}]`);
+    console.log(`📚 Docs available at https://${env.BACKEND_URL || 'localhost:3000'}/documentation`);
     
-    // 3. Start Background Cron Jobs (Analytics & Cleanup)
-    console.log('⏰ Starting Background Cron Jobs...');
-    
-    // Run every 24 hours (86400000 ms)
+    // Cron Jobs
     setInterval(() => {
       flushAnalytics().catch(err => console.error('❌ Analytics Flush Failed:', err));
     }, 24 * 60 * 60 * 1000);
@@ -34,9 +42,9 @@ const start = async () => {
   }
 };
 
-// Graceful Shutdown (Handle Ctrl+C or Docker Stop)
+// Graceful Shutdown
 const shutdown = async () => {
-  console.log('\n🛑 Shutting down server...');
+  console.log('\n🛑 SIGTERM RECEIVED. Shutting down gracefully...');
   await redisConnection.quit();
   process.exit(0);
 };

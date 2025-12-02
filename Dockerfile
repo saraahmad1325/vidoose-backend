@@ -1,31 +1,35 @@
-# Base image with Node.js
-FROM node:20-bullseye-slim
+# Use Bookworm for Python support
+FROM node:20-bookworm-slim
 
-# Install system dependencies for yt-dlp and ffmpeg
+# Install system dependencies
 RUN apt-get update && \
-    apt-get install -y python3 python3-pip ffmpeg curl && \
+    apt-get install -y python3 python3-pip python3-venv ffmpeg curl && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install yt-dlp via pip (to get the latest version easily)
-RUN python3 -m pip install -U yt-dlp
+# Setup Virtual Env
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Install yt-dlp & PM2 (Process Manager)
+RUN pip3 install -U yt-dlp
+RUN npm install -g pm2
 
 WORKDIR /app
 
-# Copy package files
+# Copy and Install
 COPY package*.json ./
-
-# Install dependencies
 RUN npm install
 
-# Copy source code
+# Build
 COPY . .
-
-# Build TypeScript
 RUN npm run build
 
-# Expose port (default for Fastify)
+# Copy Cookies manually to dist
+COPY src/config/cookies.txt dist/config/cookies.txt
+
+# Expose Port
 EXPOSE 3000
 
-# The CMD is overridden by docker-compose or Render start command
-CMD ["npm", "run", "start"]
+# 🔥 USE PM2 TO START SERVER (Instead of npm start)
+CMD ["pm2-runtime", "ecosystem.config.js"]

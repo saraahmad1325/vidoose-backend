@@ -8,18 +8,23 @@ import {
   verifyOTP, 
   verifyEmail, 
   forgotPassword, 
-  resetPassword 
+  resetPassword,
+  getMe // Import getMe
 } from './auth.controller';
 
 export async function authRoutes(fastify: FastifyInstance) {
   // Public Routes
   fastify.post('/register', register);
-  fastify.post('/login', login); // This was missing the handler!
+  fastify.post('/login', login);
   fastify.post('/verify-otp', verifyOTP);
   
-  fastify.get('/verify-email', verifyEmail); // Usually GET via link click
-  fastify.post('/verify-email', verifyEmail); // Support POST if frontend handles it
+  fastify.get('/verify-email', verifyEmail);
+  fastify.post('/verify-email', verifyEmail);
   
   fastify.post('/forgot-password', forgotPassword);
   fastify.post('/reset-password', resetPassword);
+
+  // Protected Route (Requires Token)
+  // This allows frontend to fetch user profile using the token
+  fastify.get('/me', { preHandler: [fastify.authenticate] }, getMe);
 }

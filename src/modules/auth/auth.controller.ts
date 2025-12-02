@@ -16,6 +16,19 @@ const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString()
 
 // --- Controllers ---
 
+// 1. Get Current User Profile (NEW)
+export const getMe = async (req: FastifyRequest, reply: FastifyReply) => {
+  const userId = (req.user as any).id;
+  
+  const user = await User.findById(userId).select('-passwordHash -otp -verifyToken -resetPassword');
+  
+  if (!user) {
+    return reply.status(404).send({ message: 'User not found' });
+  }
+
+  return reply.send(user);
+};
+
 export const register = async (req: FastifyRequest, reply: FastifyReply) => {
   const { email, password } = req.body as any;
 
@@ -39,7 +52,6 @@ export const register = async (req: FastifyRequest, reply: FastifyReply) => {
   return reply.status(201).send({ message: 'Registration successful. Please verify your email.' });
 };
 
-// This is the function causing your error. It must be named 'login'.
 export const login = async (req: FastifyRequest, reply: FastifyReply) => {
   const { email, password } = req.body as any;
   
@@ -54,7 +66,6 @@ export const login = async (req: FastifyRequest, reply: FastifyReply) => {
   }
 
   // --- OTP FLOW START ---
-  // Generate OTP
   const otpCode = generateOTP();
   user.otp = {
     hash: await bcrypt.hash(otpCode, 10),
@@ -63,7 +74,6 @@ export const login = async (req: FastifyRequest, reply: FastifyReply) => {
   };
   await user.save();
 
-  // Send OTP via Email
   sendOtpEmail(email, otpCode).catch(console.error);
 
   return reply.send({ 
@@ -88,11 +98,9 @@ export const verifyOTP = async (req: FastifyRequest, reply: FastifyReply) => {
     return reply.status(400).send({ message: 'Invalid OTP code' });
   }
 
-  // Clear OTP
   user.otp = undefined;
   await user.save();
 
-  // Generate JWT Token
   const token = jwt.sign(
     { id: user._id, role: user.role, plan: user.plan }, 
     env.JWT_ACCESS_SECRET, 
@@ -102,12 +110,12 @@ export const verifyOTP = async (req: FastifyRequest, reply: FastifyReply) => {
   return reply.send({ 
     message: 'Login Successful',
     token, 
-    user: { email: user.email, role: user.role, plan: user.plan } 
+    user: { email: user.email, role: user.role, plan: user.plan, isVerified: user.isVerified } 
   });
 };
 
 export const verifyEmail = async (req: FastifyRequest, reply: FastifyReply) => {
-  const { token } = req.query as any; // Usually comes from query param ?token=...
+  const { token } = req.query as any;
   if (!token) return reply.status(400).send({ message: 'Token missing' });
 
   const tokenHash = generateHash(token);
